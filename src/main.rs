@@ -13,6 +13,11 @@ fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
             return serde_json::Value::String(string[..len].to_string());
         }
     } 
+    if let Some('i') = encoded_value.chars().next() {
+        if let Some(e_pos) = encoded_value.find('e'){
+            return serde_json::Value::Number(encoded_value[1..e_pos].parse().unwrap())
+        }
+    }
     panic!("Unhandled encoded value: {}", encoded_value)
 }
 
