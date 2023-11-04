@@ -1,0 +1,12 @@
+{
+    "editor.formatOnSave": true,
+    "rust-analyzer.rustfmt.extraArgs": [
+        "+nightly"
+    ],
+    "[rust]": {
+        "editor.rulers": [
+            80,
+            120
+        ]
+    }
+}
