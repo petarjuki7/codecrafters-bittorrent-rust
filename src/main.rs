@@ -34,9 +34,7 @@ fn decode_bencoded_value(encoded_value: &str) -> (serde_json::Value, &str) {
                 let (key, remainder) = decode_bencoded_value(rest);
                 let (value, remainder) = decode_bencoded_value(remainder);
                 rest = remainder;
-                println!("{key}");
                 dict.insert(key.to_string(), value);
-                println!("{key}");
             }
             return (serde_json::Value::Object(dict), &rest[1..]);
         }
