@@ -9,7 +9,10 @@ fn decode_bencoded_value(encoded_value: &str) -> (serde_json::Value, &str) {
     match encoded_value.chars().next() {
         Some('i') => {
             if let Some((num, rest)) = encoded_value.split_at(1).1.split_once('e') {
-                return (num.into(), rest);
+                return (
+                    serde_json::Value::Number(num.parse::<i64>().unwrap().into()),
+                    rest,
+                );
             }
         }
         Some('l') => {
