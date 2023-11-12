@@ -31,12 +31,18 @@ fn decode_bencoded_value(encoded_value: &str) -> (serde_json::Value, &str) {
             let mut dict = Map::new();
             let mut rest = encoded_value.split_at(1).1;
             while !rest.is_empty() && !rest.starts_with('e') {
-                let (key, remainder) = decode_bencoded_value(rest);
+                let (k, remainder) = decode_bencoded_value(rest);
+                let k = match k {
+                    serde_json::Value::String(k) => k,
+                    k => {
+                        panic!("dict keys must be strings, not {k:?}");
+                    }
+                };
                 let (value, remainder) = decode_bencoded_value(remainder);
                 rest = remainder;
-                dict.insert(key.to_string(), value);
+                dict.insert(k, value);
             }
-            return (serde_json::Value::Object(dict), &rest[1..]);
+            return (dict.into(), &rest[1..]);
         }
 
         Some('0'..='9') => {
