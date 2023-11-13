@@ -1,6 +1,6 @@
+use bittorrent_starter_rust::torrent::Torrent;
 use serde::Deserialize;
 use serde_bencode;
-use serde_bytes::ByteBuf;
 use serde_json::{self, Map};
 use std::env;
 
@@ -17,53 +17,6 @@ struct File {
     length: i64,
     #[serde(default)]
     md5sum: Option<String>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct Info {
-    pub name: String,
-    pub pieces: ByteBuf,
-    #[serde(rename = "piece length")]
-    pub piece_length: i64,
-    #[serde(default)]
-    pub md5sum: Option<String>,
-    #[serde(default)]
-    pub length: Option<i64>,
-    #[serde(default)]
-    pub files: Option<Vec<File>>,
-    #[serde(default)]
-    pub private: Option<u8>,
-    #[serde(default)]
-    pub path: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "root hash")]
-    pub root_hash: Option<String>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct Torrent {
-    info: Info,
-    #[serde(default)]
-    announce: Option<String>,
-    #[serde(default)]
-    nodes: Option<Vec<Node>>,
-    #[serde(default)]
-    encoding: Option<String>,
-    #[serde(default)]
-    httpseeds: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "announce-list")]
-    announce_list: Option<Vec<Vec<String>>>,
-    #[serde(default)]
-    #[serde(rename = "creation date")]
-    creation_date: Option<i64>,
-    #[serde(rename = "comment")]
-    comment: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "created by")]
-    created_by: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -136,8 +89,10 @@ fn main() {
         let torrent_path = &args[2];
         let torrent_file = std::fs::read(torrent_path).unwrap();
         let t: Torrent = serde_bencode::from_bytes(&torrent_file).unwrap();
-        println!("Tracker URL: {}", t.announce.unwrap());
-        println!("Length: {}", t.info.length.unwrap());
+        let hash = t.calc_info_hash();
+        println!("Tracker URL: {}", t.announce);
+        println!("Length: {}", t.info.length);
+        println!("Info Hash: {}", hex::encode(hash));
     } else {
         println!("unknown commands: {}", args[1])
     }
