@@ -1,22 +1,103 @@
 use bittorrent_starter_rust::torrent::Torrent;
-use serde::Deserialize;
+use bittorrent_starter_rust::tracker::{TrackerRequest, TrackerResponse};
+use clap::*;
 use serde_bencode;
 use serde_json::{self, Map};
-use std::env;
+use std::net::{Ipv4Addr, SocketAddrV4};
+use std::path::PathBuf;
 
 // Available if you need it!
 // use serde_bencode
 
-#[derive(Debug, Deserialize)]
-struct Node(String, i64);
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
 
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct File {
-    path: Vec<String>,
-    length: i64,
-    #[serde(default)]
-    md5sum: Option<String>,
+#[derive(Subcommand, Debug)]
+#[clap(rename_all = "snake_case")]
+enum Command {
+    Decode { value: String },
+    Info { torrent: PathBuf },
+    Peers { torrent: PathBuf },
+}
+
+// Usage: your_bittorrent.sh decode "<encoded_value>"
+fn main() {
+    let args = Args::parse();
+
+    match args.command {
+        Command::Decode { value } => {
+            // You can use print statements as follows for debugging, they'll be visible when running tests.
+            //println!("Logs from your program will appear here!");
+
+            // Uncomment this block to pass the first stage
+
+            let decoded_value = decode_bencoded_value(&value).0;
+            println!("{}", decoded_value.to_string());
+        }
+        Command::Info { torrent } => {
+            let torrent_file = std::fs::read(torrent).unwrap();
+            let t: Torrent = serde_bencode::from_bytes(&torrent_file).unwrap();
+            let hash = t.calc_info_hash();
+            println!("Tracker URL: {}", t.announce);
+            println!("Length: {}", t.info.length);
+            println!("Info Hash: {}", hex::encode(hash));
+            println!("Piece Length: {}", t.info.piece_length);
+            println!("Piece Hashes:");
+            let mut hash_iterator = t.info.pieces.chunks_exact(20);
+            while let Some(chunk) = hash_iterator.next() {
+                println!("{}", hex::encode(chunk));
+            }
+        }
+        Command::Peers { torrent } => {
+            let torrent_file = std::fs::read(torrent).unwrap();
+            let t: Torrent = serde_bencode::from_bytes(&torrent_file).unwrap();
+            let info_hash = t.calc_info_hash();
+
+            let request = TrackerRequest {
+                peer_id: "00112233445566778899".to_string(),
+                port: 6881,
+                uploaded: 0,
+                downloaded: 0,
+                left: t.info.length,
+                compact: 1,
+            };
+
+            let url_params = serde_urlencoded::to_string(&request).unwrap();
+
+            let tracker_url = format!(
+                "{}?{}&info_hash={}",
+                t.announce,
+                url_params,
+                urlencode(&info_hash)
+            );
+
+            let response = reqwest::blocking::get(tracker_url).unwrap();
+            let response = response.bytes().unwrap();
+
+            let response: TrackerResponse =
+                serde_bencode::from_bytes(&response).expect("parse tracker response");
+
+            let nes = response.peers;
+
+            let ips: Vec<SocketAddrV4> = nes
+                .chunks_exact(6)
+                .map(|slice_6| {
+                    SocketAddrV4::new(
+                        Ipv4Addr::new(slice_6[0], slice_6[1], slice_6[2], slice_6[3]),
+                        u16::from_be_bytes([slice_6[4], slice_6[5]]),
+                    )
+                })
+                .collect();
+
+            for peer in ips {
+                println!("{}:{}", peer.ip(), peer.port());
+            }
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -72,34 +153,11 @@ fn decode_bencoded_value(encoded_value: &str) -> (serde_json::Value, &str) {
     panic!("Unhandled encoded value: {}", encoded_value)
 }
 
-// Usage: your_bittorrent.sh decode "<encoded_value>"
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let command = &args[1];
-
-    if command == "decode" {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
-        //println!("Logs from your program will appear here!");
-
-        // Uncomment this block to pass the first stage
-        let encoded_value = &args[2];
-        let decoded_value = decode_bencoded_value(encoded_value).0;
-        println!("{}", decoded_value.to_string());
-    } else if command == "info" {
-        let torrent_path = &args[2];
-        let torrent_file = std::fs::read(torrent_path).unwrap();
-        let t: Torrent = serde_bencode::from_bytes(&torrent_file).unwrap();
-        let hash = t.calc_info_hash();
-        println!("Tracker URL: {}", t.announce);
-        println!("Length: {}", t.info.length);
-        println!("Info Hash: {}", hex::encode(hash));
-        println!("Piece Length: {}", t.info.piece_length);
-        println!("Piece Hashes:");
-        let mut hash_iterator = t.info.pieces.chunks_exact(20);
-        while let Some(chunk) = hash_iterator.next() {
-            println!("{}", hex::encode(chunk));
-        }
-    } else {
-        println!("unknown commands: {}", args[1])
+fn urlencode(t: &[u8; 20]) -> String {
+    let mut encoded = String::with_capacity(3 * t.len());
+    for &byte in t {
+        encoded.push('%');
+        encoded.push_str(&hex::encode(&[byte]));
     }
+    encoded
 }
