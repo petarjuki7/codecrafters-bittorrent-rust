@@ -93,6 +93,12 @@ fn main() {
         println!("Tracker URL: {}", t.announce);
         println!("Length: {}", t.info.length);
         println!("Info Hash: {}", hex::encode(hash));
+        println!("Piece Length: {}", t.info.piece_length);
+        println!("Piece Hashes:");
+        let mut hash_iterator = t.info.pieces.chunks_exact(20);
+        while let Some(chunk) = hash_iterator.next() {
+            println!("{}", hex::encode(chunk));
+        }
     } else {
         println!("unknown commands: {}", args[1])
     }
