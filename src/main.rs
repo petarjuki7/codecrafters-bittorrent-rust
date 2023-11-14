@@ -1,8 +1,11 @@
+use bittorrent_starter_rust::peers::Handshake;
 use bittorrent_starter_rust::torrent::Torrent;
 use bittorrent_starter_rust::tracker::{TrackerRequest, TrackerResponse};
 use clap::*;
 use serde_bencode;
 use serde_json::{self, Map};
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
 
@@ -22,19 +25,16 @@ enum Command {
     Decode { value: String },
     Info { torrent: PathBuf },
     Peers { torrent: PathBuf },
+    Handshake { torrent: PathBuf, ip: SocketAddrV4 },
 }
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
     match args.command {
         Command::Decode { value } => {
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
-            //println!("Logs from your program will appear here!");
-
-            // Uncomment this block to pass the first stage
-
             let decoded_value = decode_bencoded_value(&value).0;
             println!("{}", decoded_value.to_string());
         }
@@ -96,6 +96,30 @@ fn main() {
             for peer in ips {
                 println!("{}:{}", peer.ip(), peer.port());
             }
+        }
+        Command::Handshake { torrent, ip } => {
+            let torrent_file = std::fs::read(torrent).unwrap();
+            let t: Torrent = serde_bencode::from_bytes(&torrent_file).unwrap();
+            let info_hash = t.calc_info_hash();
+
+            let mut handshake = Handshake {
+                len: 19,
+                string: *b"BitTorrent protocol",
+                reserved: [0, 0, 0, 0, 0, 0, 0, 0],
+                sha1_infohash: info_hash,
+                peer_id: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9],
+            };
+
+            let handshake_bytes = unsafe { handshake.as_u8_slice() };
+
+            let mut stream = TcpStream::connect(ip).unwrap();
+
+            stream.write_all(handshake_bytes).unwrap();
+
+            let mut buffer = [0; 1 + 19 + 8 + 20 + 20];
+            stream.read_exact(&mut buffer).unwrap();
+
+            println!("Peer ID: {}", hex::encode(&buffer[48..]));
         }
     }
 }
