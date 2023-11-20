@@ -216,13 +216,10 @@ async fn main() {
             .await
             .unwrap();
 
-            let unchoke = peer.next().await.unwrap().unwrap();
-            eprintln!("{:?}", unchoke.tag);
+            let _unchoke = peer.next().await.unwrap().unwrap();
 
             let piece_hash = t.info.pieces.chunks_exact(20).next().unwrap();
             let piece_size = t.info.piece_length;
-            eprintln!("{}", piece_size);
-            eprintln!("{:?}", piece_hash);
 
             let nblocks = (piece_size + (BLOCK_MAX - 1)) / BLOCK_MAX;
             let mut all_blocks: Vec<u8> = Vec::with_capacity(piece_size as usize);
