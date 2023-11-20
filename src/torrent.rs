@@ -18,7 +18,7 @@ pub struct Info {
     pub name: String,
     pub pieces: ByteBuf,
     #[serde(rename = "piece length")]
-    pub piece_length: i64,
+    pub piece_length: usize,
     #[serde(default)]
     pub length: i64,
 }
